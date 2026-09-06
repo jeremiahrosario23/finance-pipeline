@@ -106,7 +106,7 @@ def generate_payments(volume_check, volume_target):
         })
 
     # Save to CSV in raw payment landing zone
-    current_datetime = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    current_datetime = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     output_path = f"{volume_target}/payments_{current_datetime}.csv"
 
     # Ensure target directory volume exists

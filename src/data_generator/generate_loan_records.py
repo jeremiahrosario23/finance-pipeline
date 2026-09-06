@@ -1,5 +1,13 @@
 import subprocess
 import sys
+
+# Force the compute cluster to install faker every time the databricks runtime spins up
+try:
+    import faker
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "faker"])
+
+
 import os
 import json
 import random
@@ -8,11 +16,6 @@ from faker import Faker
 from datetime import datetime, timedelta
 import argparse
 
-# Force the compute cluster to install faker every time the databricks runtime spins up
-try:
-    import faker
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "faker"])
 
 # Start of generation
 fake = Faker()
@@ -141,7 +144,7 @@ def generate_loans(volume_path, num_records=None):
         loans.append(loan)
         
     # Save to raw volume as JSON since this is how OLTP loan systems save data
-    current_datetime = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    current_datetime = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     output_path = f"{volume_path}/loans_{current_datetime}.json"
 
     # Ensure target directory volume exists
