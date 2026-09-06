@@ -1,59 +1,56 @@
-# Import modules
-import sys          # parameterization
-import requests     # common attributes: status_code, text, headers // common methods: json(), get(), post(), put(), delete(), head(), raise_for_status()
-import json         # common methods: dumps(), dump(), loads(), load() (with s means to string while no s means to file)
+import argparse
+import requests      
+import json         
 import os
 from datetime import datetime
 
-print(sys.argv)
-
-# Catch the parameter (and ignore IPython's interactive -f flag)
-if len(sys.argv) > 1 and not sys.argv[1].startswith("-f"): 
-    env_catalog = sys.argv[1]
-    print(f"Running in Job mode. Target catalog: {env_catalog}")
-else:
-    env_catalog = "dev_finance"
-    print(f"Running in Local Dev mode. Defaulting to catalog: {env_catalog}")
-
-
-# Define our endpoints and storage paths
-api_url = "https://open.er-api.com/v6/latest/USD"
-volume_path = f"/Volumes/{env_catalog}/raw/remittance"
+def fetch_exchange_rates(api_url: str) -> dict:
+    """Fetches the API from the url with fast error handling"""
+    try: 
+        response = requests.get(api_url, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"CRITICAL: API Request failed: {e}")
+        raise 
 
 
-# Print initial stdout
-print(f"Starting pipeline...")
-print(f"Calling API: {api_url}")
+def land_exchange_rate_file_to_volume(data: dict, volume_path: str,):
+    """Lands the JSON data into a hive-style partitioned Unity Catalog volume"""
+    try: 
+        # Get current time to name our files and folders
+        folder_date = datetime.now().strftime("%Y-%m-%d")                  
+        file_datetime = datetime.now().strftime("%Y-%m-%d_%H%M%S")        
 
+        # Create the folder path filename path using hive-stye partitioning
+        folder_path = f"{volume_path}/date={folder_date}"
+        file_name = f"{folder_path}/exchange_rates_{file_datetime}.json"
 
-# Fetch the data from the API using .get() method from response package
-# Outputs a response object
-response = requests.get(api_url)
+        # Create directory for current day run data if not exists
+        os.makedirs(folder_path, exist_ok=True)
 
+        # Write the data to the file
+        with open(file_name, "w") as f:
+            json.dump(data, f)
 
-# Check if  API gave us a good response using .status_code method. 
-if response.status_code == 200:
+        print(f"INFO: File written to {folder_path}")
+
+    except Exception as e:
+        print(f"CRITICAL: File write failed: {e}")
+        raise
+
+if __name__ == "__main__":
+    # Setup argparse 
+    parser = argparse.ArgumentParser(description="Exchange rates to Unity Catalog volume")
+    parser.add_argument("--catalog", type=str, default="dev", help="Target catalog name")
+    args, _ = parser.parse_known_args()
+
+    # Declare the variables
+    api_endpoint = "https://open.er-api.com/v6/latest/USD"
+    volume_destination = f"/Volumes/{args.catalog}/landing/exchange_rates"
     
-    # Convert the raw text response into a dict-type using .json() method from response package
-    data = response.json()
-    
-    # Get current time to name our files and folders
-    now = datetime.now()
-    folder_date = now.strftime("%Y-%m-%d")                  # Example: 2026-07-03
-    file_timestamp = now.strftime("%Y-%m-%d_%H%M%S")        # Example: 2026-07-03_212730
-    
-    # Build our Hive-style folder path and file name
-    target_folder = f"{volume_path}/landing_date={folder_date}"
-    target_file = f"{target_folder}/exchange_rates_{file_timestamp}.json"
-    
-    # Create the folder in our Volume if it doesn't exist yet
-    os.makedirs(target_folder, exist_ok=True)       # exist_ok to prevent error if folder already exists
-    
-    # Write the data into the JSON file
-    with open(target_file, "w") as file:    # open file with context manager in write mode
-        json.dump(data, file)               # dump the data into the file
-        
-    print(f"Success! Data landed in: {target_file}")    # print stdout
-else:
-    # If the API is down, tell us exactly what error code it threw
-    print(f"Failed! The API returned status code: {response.status_code}")
+    # Begin  
+    print(f"INFO: Starting extraction for catalog: {args.catalog}")
+    raw_payload = fetch_exchange_rates(api_endpoint)
+    land_exchange_rate_file_to_volume(raw_payload, volume_destination)
+    print("INFO: Pipeline completed successfully.")

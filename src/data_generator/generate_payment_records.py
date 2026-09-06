@@ -1,4 +1,3 @@
-# Import modules
 import os
 import glob
 import json
@@ -6,11 +5,12 @@ import random
 import uuid
 import csv
 from datetime import datetime, timedelta
+import argparse
 
 # Define the payment generator function that will locate existing contracts in the Volume and generate payments for them depending on their due dates
-def generate_payments():
+def generate_payments(volume_check, volume_target):
     # Locate the latest Loan JSON extract from the Volume
-    loan_files = sorted(glob.glob("/Volumes/dev_finance/raw/loan_records/*.json"))
+    loan_files = sorted(glob.glob(f"{volume_check}/*.json"))
     print(loan_files)
 
     if not loan_files:
@@ -19,7 +19,7 @@ def generate_payments():
 
     latest_loan_file = loan_files[-1]
     
-    # Setup target date (Yesterday) for the batch run
+    # Setup target date (yesterday) for the batch run
     yesterday = datetime.now() - timedelta(days=1)
     target_day = yesterday.day
 
@@ -98,8 +98,8 @@ def generate_payments():
             "transaction_id": f"TXN-{uuid.uuid4().hex[:10].upper()}",
             "loan_reference_id": item["loan_id"],
             "amount": paid_amount,
-            "currency": item["currency"],              # <-- Dynamically mapped from loan
-            "customer_location": item["customer_location"],  # <-- Dynamically mapped from loan
+            "currency": item["currency"],              # Dynamically mapped from loan
+            "customer_location": item["customer_location"],  # Dynamically mapped from loan
             "payment_channel": random.choice(payment_methods),
             "status": random.choice(statuses),
             "transaction_timestamp": payment_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -107,13 +107,15 @@ def generate_payments():
 
     # Save to CSV in raw payment landing zone
     current_datetime = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    output_path = f"/Volumes/dev_finance/raw/payment_records/raw_payments_{current_datetime}.csv"
+    output_path = f"{volume_target}/payments_{current_datetime}.csv"
 
     # Ensure target directory volume exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     # Added customer_location to the fieldnames
     fieldnames = ["transaction_id", "loan_reference_id", "amount", "currency", "customer_location", "payment_channel", "status", "transaction_timestamp"]
+
+    # Write to path
     with open(output_path, "w", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -121,5 +123,20 @@ def generate_payments():
 
     print(f"Successfully generated {len(payments)} payment transactions at {output_path}")
 
+# Begin
 if __name__ == "__main__":
-    generate_payments()
+    # Setup argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--catalog", type= str, default="dev", help="Target catalog name")
+    args, _ = parser.parse_known_args()
+
+    # Declare variables
+    volume_prereq = f"/Volumes/{args.catalog}/landing/loan_records"
+    volume_destination = f"/Volumes/{args.catalog}/landing/payment_records"
+
+    # Begin
+    generate_payments(volume_prereq, volume_destination)
+
+
+
+
