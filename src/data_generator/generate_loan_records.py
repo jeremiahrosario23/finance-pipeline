@@ -152,13 +152,12 @@ def generate_loans(volume_path, num_records=None):
 
     # Write to path
     with open(output_path, "w") as f:
-        # Saving as line-delimited JSON (very common in big data)
+        # Saving as line-delimited JSON
         for record in loans:
             f.write(json.dumps(record) + "\n")
-            
-    print(f"Successfully generated {num_records} messy loan records at {output_path}")
 
-# Begin
+    print(f"INFO: Successfully generated {num_records} messy loan records at {output_path}")
+
 if __name__ == "__main__":
     # Setup argparse
     parser = argparse.ArgumentParser()
@@ -168,7 +167,7 @@ if __name__ == "__main__":
     # Declare variables
     volume_destination = f"/Volumes/{args.catalog}/landing/loan_records"
 
-    # Begin
+    # Call function
     generate_loans(volume_destination)
 
 
