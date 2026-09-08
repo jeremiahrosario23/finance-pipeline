@@ -1,13 +1,3 @@
-import subprocess
-import sys
-
-# Force the compute cluster to install faker every time the databricks runtime spins up
-try:
-    import faker
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "faker"])
-
-
 import os
 import json
 import random
