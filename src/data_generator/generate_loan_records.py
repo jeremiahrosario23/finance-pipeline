@@ -1,24 +1,16 @@
-# -------------------- Force the compute cluster to install faker every time the databricks runtime spins up
-import subprocess
-import sys
-
-try:
-    import faker
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "faker"])
-
-# -------------------- Start of generation
-# Import modules
+import os
 import json
 import random
 import uuid
 from faker import Faker
 from datetime import datetime, timedelta
+import argparse
 
-# initiate Faker object
+
+# Start of generation
 fake = Faker()
 
-# -------------------- Add Currency and Location Logic
+# Add Currency and Location Logic
 def get_currency_and_location():
     """
     Assigns a currency and customer location based on the Neobank's regional distribution strategy.
@@ -51,7 +43,7 @@ def get_currency_and_location():
         ])
 
 # Define function for generating loans
-def generate_loans(num_records=None):
+def generate_loans(volume_path, num_records=None):
     # Set random number of records to generate
     if num_records is None:
         num_records = random.randint(500, 1000)
@@ -142,15 +134,32 @@ def generate_loans(num_records=None):
         loans.append(loan)
         
     # Save to raw volume as JSON since this is how OLTP loan systems save data
-    current_datetime = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    output_path = f"/Volumes/dev_finance/raw/loan_records/raw_loans_extract_{current_datetime}.json"
+    current_datetime = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    output_path = f"{volume_path}/loans_{current_datetime}.json"
+
+    # Ensure target directory volume exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Write to path
     with open(output_path, "w") as f:
-        # Saving as line-delimited JSON (very common in big data)
+        # Saving as line-delimited JSON
         for record in loans:
             f.write(json.dumps(record) + "\n")
-            
-    print(f"Successfully generated {num_records} messy loan records at {output_path}")
 
-# "if I am the main file being run, then lets go" 
+    print(f"INFO: Successfully generated {num_records} messy loan records at {output_path}")
+
 if __name__ == "__main__":
-    generate_loans()
+    # Setup argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--catalog", type=str, default="dev", help="Target catalog name")
+    args, _ = parser.parse_known_args()
+    
+    # Declare variables
+    volume_destination = f"/Volumes/{args.catalog}/landing/loan_records"
+
+    # Call function
+    generate_loans(volume_destination)
+
+
+
+
